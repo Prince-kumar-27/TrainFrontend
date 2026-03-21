@@ -1,0 +1,18 @@
+# Dependencies (NEVER upload this, it's huge)
+node_modules/
+
+# Environment variables (Contains your MongoDB password/API keys)
+.env
+
+# Build folders
+dist/
+build/
+.next/
+
+# Debug logs
+npm-debug.log*
+yarn-error.log*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
