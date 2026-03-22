@@ -25,9 +25,14 @@ export default function CameraScanner({ onScan, active, onToggle }) {
   const [starting,  setStarting]  = useState(false);
 
   useEffect(() => {
-    if (active) startScanner();
-    else stopScanner();
-    return () => { stopScanner(); };
+    if (active) {
+      // Small delay so React has time to paint the div into the DOM
+      // with real dimensions before html5-qrcode tries to measure it.
+      const t = setTimeout(startScanner, 100);
+      return () => { clearTimeout(t); stopScanner(); };
+    } else {
+      stopScanner();
+    }
   }, [active]);
 
   const startScanner = async () => {
@@ -41,23 +46,15 @@ export default function CameraScanner({ onScan, active, onToggle }) {
         { facingMode: "environment" },
         {
           fps: 10,
-
-          // ── THE FIX ──────────────────────────────────────────
-          // Instead of a fixed 240×240 box, use a function that
-          // receives the actual video dimensions and returns a
-          // scan zone that is 85% of the smaller side — so it
-          // always fills most of the camera frame on any screen.
           qrbox: (viewfinderWidth, viewfinderHeight) => {
             const edge = Math.floor(
               Math.min(viewfinderWidth, viewfinderHeight) * 0.85
             );
             return { width: edge, height: edge };
           },
-          // ─────────────────────────────────────────────────────
-
-          aspectRatio: 1.0,           // keeps preview square on mobile
+          aspectRatio: 1.0,
           experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true, // faster on Android Chrome
+            useBarCodeDetectorIfSupported: true,
           },
         },
         (text) => {
@@ -73,7 +70,7 @@ export default function CameraScanner({ onScan, active, onToggle }) {
             }, 3000);
           }
         },
-        () => {} // per-frame failure — intentionally silent
+        () => {}
       );
     } catch (err) {
       const msg = err?.message ?? "";
@@ -120,8 +117,21 @@ export default function CameraScanner({ onScan, active, onToggle }) {
       {error    && <div className="camera-scanner-error">{error}</div>}
       {lastScan && <div className="camera-scanner-success">✓ Scanned! {lastScan}</div>}
 
-      {/* Always keep the div in the DOM while active so html5-qrcode can mount into it */}
-      <div id={QR_REGION_ID} style={{ display: active ? "block" : "none" }} />
+      {/*
+        KEY FIX: Never use display:none on this div.
+        html5-qrcode reads the div's width/height when it starts.
+        display:none gives it 0x0 → camera stream has no size → black screen.
+        Instead we use height:0 + overflow:hidden to hide it visually
+        while keeping real layout dimensions when active.
+      */}
+      <div
+        id={QR_REGION_ID}
+        style={{
+          minHeight: active ? 280 : 0,
+          height:    active ? "auto" : 0,
+          overflow:  "hidden",
+        }}
+      />
 
       {!active && !error && (
         <div className="camera-scanner-off">
