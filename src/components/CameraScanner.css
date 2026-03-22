@@ -72,12 +72,32 @@
   gap: 8px;
 }
 
-/* QR video region */
+/* ── QR video region — THE FIX ───────────────────────────── */
 #nexus-qr-reader {
+  width: 100%;          /* fill the card width */
   min-height: 280px;
 }
 
-/* Camera off placeholder */
+/* Force the library-injected elements to fill the box */
+#nexus-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;   /* fills full area, no letterboxing */
+  display: block;
+}
+
+/* The inner scan box the library creates */
+#nexus-qr-reader > div {
+  width: 100% !important;
+  padding: 0 !important;
+}
+
+/* Remove the default white border/shadow the library adds around the video */
+#nexus-qr-reader img {
+  display: none;        /* hides the library's own QR icon overlay */
+}
+
+/* ── Camera off placeholder ──────────────────────────────── */
 .camera-scanner-off {
   display: flex;
   flex-direction: column;

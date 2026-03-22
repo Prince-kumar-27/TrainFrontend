@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import "./CameraScanner.css"; // import the new CSS
+import "./CameraScanner.css";
 
 const QR_REGION_ID = "nexus-qr-reader";
 
@@ -31,13 +31,35 @@ export default function CameraScanner({ onScan, active, onToggle }) {
   }, [active]);
 
   const startScanner = async () => {
-    setError(null); setStarting(true);
+    setError(null);
+    setStarting(true);
     try {
       const scanner = new Html5Qrcode(QR_REGION_ID);
       scannerRef.current = scanner;
+
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 240, height: 240 } },
+        {
+          fps: 10,
+
+          // ── THE FIX ──────────────────────────────────────────
+          // Instead of a fixed 240×240 box, use a function that
+          // receives the actual video dimensions and returns a
+          // scan zone that is 85% of the smaller side — so it
+          // always fills most of the camera frame on any screen.
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const edge = Math.floor(
+              Math.min(viewfinderWidth, viewfinderHeight) * 0.85
+            );
+            return { width: edge, height: edge };
+          },
+          // ─────────────────────────────────────────────────────
+
+          aspectRatio: 1.0,           // keeps preview square on mobile
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true, // faster on Android Chrome
+          },
+        },
         (text) => {
           if (cooldownRef.current) return;
           const result = parseQRUrl(text);
@@ -45,23 +67,33 @@ export default function CameraScanner({ onScan, active, onToggle }) {
             cooldownRef.current = true;
             setLastScan(`Track: ${result.trackId} — ${result.position} km`);
             onScan(result);
-            setTimeout(() => { cooldownRef.current = false; setLastScan(null); }, 3000);
+            setTimeout(() => {
+              cooldownRef.current = false;
+              setLastScan(null);
+            }, 3000);
           }
         },
-        () => {}
+        () => {} // per-frame failure — intentionally silent
       );
     } catch (err) {
       const msg = err?.message ?? "";
-      setError(msg.includes("ermission")
-        ? "Camera permission denied. Allow camera access in your browser settings."
-        : "Could not start camera: " + msg);
+      setError(
+        msg.includes("ermission")
+          ? "Camera permission denied. Allow camera access in your browser settings."
+          : "Could not start camera: " + msg
+      );
       onToggle();
-    } finally { setStarting(false); }
+    } finally {
+      setStarting(false);
+    }
   };
 
   const stopScanner = async () => {
     if (scannerRef.current) {
-      try { await scannerRef.current.stop(); scannerRef.current.clear(); } catch {}
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current.clear();
+      } catch {}
       scannerRef.current = null;
     }
   };
@@ -72,7 +104,9 @@ export default function CameraScanner({ onScan, active, onToggle }) {
         <div>
           <p className="camera-scanner-title">Live QR Scanner</p>
           <p className="camera-scanner-subtitle">
-            {active ? "Point camera at a track QR code — auto-detects" : "Tap Start Camera to begin scanning"}
+            {active
+              ? "Point camera at a track QR code — auto-detects"
+              : "Tap Start Camera to begin scanning"}
           </p>
         </div>
         <button
@@ -83,9 +117,10 @@ export default function CameraScanner({ onScan, active, onToggle }) {
         </button>
       </div>
 
-      {error && <div className="camera-scanner-error">{error}</div>}
+      {error    && <div className="camera-scanner-error">{error}</div>}
       {lastScan && <div className="camera-scanner-success">✓ Scanned! {lastScan}</div>}
 
+      {/* Always keep the div in the DOM while active so html5-qrcode can mount into it */}
       <div id={QR_REGION_ID} style={{ display: active ? "block" : "none" }} />
 
       {!active && !error && (
